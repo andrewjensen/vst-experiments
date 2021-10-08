@@ -7,6 +7,10 @@ use vst::buffer::AudioBuffer;
 use vst::plugin::{Category, HostCallback, Info, Plugin, PluginParameters};
 use vst::util::AtomicFloat;
 
+mod decibels;
+
+use decibels::{parameter_to_decibels, decibels_to_amplitude};
+
 #[derive(Default)]
 struct BasicPlugin;
 
@@ -16,13 +20,13 @@ struct GainEffect {
 }
 
 struct GainEffectParameters {
-    amplitude: AtomicFloat,
+    gain: AtomicFloat,
 }
 
 impl Default for GainEffectParameters {
     fn default() -> GainEffectParameters {
         GainEffectParameters {
-            amplitude: AtomicFloat::new(0.5),
+            gain: AtomicFloat::new(0.5),
         }
     }
 }
@@ -51,8 +55,10 @@ impl Plugin for GainEffect {
     }
 
     fn process(&mut self, buffer: &mut AudioBuffer<f32>) {
-        // Read the amplitude from the parameter object
-        let amplitude = self.params.amplitude.get();
+        let amplitude_param = self.params.gain.get();
+        let gain_decibels = parameter_to_decibels(amplitude_param);
+        let amplitude = decibels_to_amplitude(gain_decibels);
+
         // First, we destructure our audio buffer into an arbitrary number of
         // input and output buffers.  Usually, we'll be dealing with stereo (2 of each)
         // but that might change.
@@ -74,7 +80,7 @@ impl Plugin for GainEffect {
 impl PluginParameters for GainEffectParameters {
     fn get_parameter(&self, index: i32) -> f32 {
         match index {
-            0 => self.amplitude.get(),
+            0 => self.gain.get(),
             _ => 0.0,
         }
     }
@@ -82,21 +88,21 @@ impl PluginParameters for GainEffectParameters {
     fn set_parameter(&self, index: i32, val: f32) {
         #[allow(clippy::single_match)]
         match index {
-            0 => self.amplitude.set(val),
+            0 => self.gain.set(val),
             _ => (),
         }
     }
 
     fn get_parameter_text(&self, index: i32) -> String {
         match index {
-            0 => format!("Hello {:.2}", (self.amplitude.get() - 0.5) * 2f32),
+            0 => format!("{:.2}", parameter_to_decibels(self.gain.get())),
             _ => "".to_string(),
         }
     }
 
     fn get_parameter_name(&self, index: i32) -> String {
         match index {
-            0 => "Amplitude",
+            0 => "Gain",
             _ => "",
         }
         .to_string()
